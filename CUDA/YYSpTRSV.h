@@ -86,9 +86,10 @@ void yySpTRSV_csr_kernel(const int* __restrict__        d_csrRowPtr,
             }
             sum += d_x[col] * d_csrVal[j];
         }
-        
+
+        unsigned mask = __activemask();
         for (int offset = WARP_SIZE/2; offset > 0; offset /= 2) {
-            sum += __shfl_down(sum, offset);
+            sum += __shfl_down_sync(mask, sum, offset);
         }
         
         if (!lane_id)   /* thread 0 in each warp*/
