@@ -16,7 +16,7 @@
 #endif
 
 #ifndef BENCH_REPEAT
-#define BENCH_REPEAT 100
+#define BENCH_REPEAT 10
 #endif
 
 #ifndef WARP_SIZE
