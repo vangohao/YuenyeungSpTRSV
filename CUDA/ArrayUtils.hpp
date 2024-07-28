@@ -44,11 +44,11 @@ UNI_HOST_DEVICE std::string array_to_string(std::array<T, I> tpl) {
 //     });
 //     return result;
 // }
-template <class T, std::size_t N>
-ALWAYS_INLINE constexpr bool operator!=(const std::array<T, N>& lhs,
-                                        const std::array<T, N>& rhs) {
-    return !(lhs == rhs);
-}
+// template <class T, std::size_t N>
+// ALWAYS_INLINE constexpr bool operator!=(const std::array<T, N>& lhs,
+//                                         const std::array<T, N>& rhs) {
+//     return !(lhs == rhs);
+// }
 #endif
 #endif
 
