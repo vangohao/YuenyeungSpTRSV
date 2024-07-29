@@ -12,8 +12,8 @@
 
 #include "YYSpTRSV.h"
 
-#include "ArrayUtils.hpp"
-#include "JsonUtils.hpp"
+#include "unisolver/ArrayUtils.hpp"
+#include "unisolver/JsonUtils.hpp"
 
 using namespace uni;
 
@@ -149,7 +149,13 @@ void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
 
     /* !!!!!! start computing SpTRSV !!!!!!!! */
     double solve_time, gflops, bandwith, pre_time, warp_occupy, element_occupy;
+    // warm up
     int success = YYSpTRSV_csr(
+        A_num_rows, A_num_rows, A_nnz, hA_csrOffsets.data(), hA_columns.data(),
+        hA_values.data(), hX.data(), hY.data(), border, &solve_time, &gflops,
+        &bandwith, &pre_time, &warp_occupy, &element_occupy);
+    // test
+    success = YYSpTRSV_csr(
         A_num_rows, A_num_rows, A_nnz, hA_csrOffsets.data(), hA_columns.data(),
         hA_values.data(), hX.data(), hY.data(), border, &solve_time, &gflops,
         &bandwith, &pre_time, &warp_occupy, &element_occupy);
