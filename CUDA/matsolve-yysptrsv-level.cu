@@ -103,35 +103,100 @@ void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
     std::vector<double> hY_result;
     // 注意这里求解的是A* Y = X, 所以这里的Y是输出, X是输入
 
-    // set A & hX
+    auto get_level = [stencil_type](cusp_int x, cusp_int y, cusp_int z) {
+        if (stencil_type == 0) {
+            return x + y + z;
+        } else {
+            return x + 2 * y + 4 * z;
+        }
+    };
+
+    cusp_int num_levels = get_level(M - 1, N - 1, P - 1) + 1;
+    std::vector<cusp_int> level_count(num_levels, 0);
+    std::vector<cusp_int> level_start(num_levels, 0);
+    std::vector<cusp_int> origin_id_to_id_in_level(M * N * P);
+    std::vector<cusp_int> level_id_to_origin_id_map(M * N * P);
+    std::vector<cusp_int> origin_id_to_level_id_map(M * N * P);
+
+    NestedLoop(std::array<cusp_int, Dim>{}, std::array<cusp_int, Dim>{M, N, P},
+               [&](auto loc) {
+                   cusp_int level = get_level(loc[0], loc[1], loc[2]);
+                   origin_id_to_id_in_level[CartToFlat(
+                       loc, std::array<cusp_int, Dim>{M, N, P})] =
+                       level_count[level];
+                   level_count[level]++;
+               });
+
+    for (cusp_int i = 1; i < num_levels; i++) {
+        level_start[i] = level_start[i - 1] + level_count[i - 1];
+    }
+
     NestedLoop(
         std::array<cusp_int, Dim>{}, std::array<cusp_int, Dim>{M, N, P},
         [&](auto loc) {
-            for (int d = 0; d < Dof; d++) {
-                hA_csrOffsets.push_back(A_nnz);
-                cusp_int cnt = 0;
-                for (auto pt : stencil_points) {
-                    if (in_range(loc + pt, std::array<cusp_int, Dim>{},
-                                 std::array<cusp_int, Dim>{M, N, P} - 1)) {
-                        for (int k = 0; k < Dof; k++) {
-                            if (pt != std::array<cusp_int, Dim>{0, 0, 0} ||
-                                k == d) {
-                                hA_columns.push_back(
-                                    CartToFlat(
-                                        loc + pt,
-                                        std::array<cusp_int, Dim>{M, N, P}) *
-                                        Dof +
-                                    k);
-                                hA_values.push_back(1.);
-                                A_nnz++;
-                                cnt++;
-                            }
+            cusp_int level = get_level(loc[0], loc[1], loc[2]);
+            cusp_int id = CartToFlat(loc, std::array<cusp_int, Dim>{M, N, P});
+            cusp_int id_in_level = origin_id_to_id_in_level[id];
+            level_id_to_origin_id_map[level_start[level] + id_in_level] = id;
+            origin_id_to_level_id_map[id] = level_start[level] + id_in_level;
+        });
+
+    // std::cout << "level_count = ";
+    // for (int i = 0; i < num_levels; i++) {
+    //     std::cout << level_count[i] << " ";
+    // }
+    // std::cout << "\n";
+    // std::cout << "level_start = ";
+    // for (int i = 0; i < num_levels; i++) {
+    //     std::cout << level_start[i] << " ";
+    // }
+    // std::cout << "\n";
+    // std::cout << "origin_id_to_id_in_level = ";
+    // for (int i = 0; i < M * N * P; i++) {
+    //     std::cout << origin_id_to_id_in_level[i] << " ";
+    // }
+    // std::cout << "\n";
+    // std::cout << "level_id_to_origin_id_map = ";
+    // for (int i = 0; i < M * N * P; i++) {
+    //     std::cout << level_id_to_origin_id_map[i] << " ";
+    // }
+    // std::cout << "\n";
+    // std::cout << "origin_id_to_level_id_map = ";
+    // for (int i = 0; i < M * N * P; i++) {
+    //     std::cout << origin_id_to_level_id_map[i] << " ";
+    // }
+    // std::cout << "\n";
+
+    // set A & hX
+
+    for (cusp_int i = 0; i < M * N * P; i++) {
+        auto loc = FlatToCart(level_id_to_origin_id_map[i],
+                              std::array<cusp_int, Dim>{M, N, P});
+        for (int d = 0; d < Dof; d++) {
+            hA_csrOffsets.push_back(A_nnz);
+            cusp_int cnt = 0;
+            for (auto pt : stencil_points) {
+                if (in_range(loc + pt, std::array<cusp_int, Dim>{},
+                             std::array<cusp_int, Dim>{M, N, P} - 1)) {
+                    for (int k = 0; k < Dof; k++) {
+                        if (pt != std::array<cusp_int, Dim>{0, 0, 0} ||
+                            k == d) {
+                            hA_columns.push_back(
+                                origin_id_to_level_id_map[CartToFlat(
+                                    loc + pt,
+                                    std::array<cusp_int, Dim>{M, N, P})] *
+                                    Dof +
+                                k);
+                            hA_values.push_back(1.);
+                            A_nnz++;
+                            cnt++;
                         }
                     }
                 }
-                hX.push_back(cnt);
             }
-        });
+            hX.push_back(cnt);
+        }
+    }
     hA_csrOffsets.push_back(A_nnz);
 
     std::cout << "A_nnz = " << A_nnz << "\n";
