@@ -137,7 +137,7 @@ int YYSpTRSV_csr(const int            m,
     
     /* preprocessing */
     int Len;
-    int *warp_num=(int *)malloc((m+1)*sizeof(int));
+    int *warp_num=(int *)malloc(sizeof(int)*(m+1));
     if (warp_num==NULL)
         printf("warp_num error\n");
     memset (warp_num, 0, sizeof(int)*(m+1));
@@ -171,33 +171,33 @@ int YYSpTRSV_csr(const int            m,
     
     
     // Matrix L
-    cudaMalloc((void **)&d_csrRowPtrL, (m+1) * sizeof(int));
-    cudaMalloc((void **)&d_csrColIdx, nnzL  * sizeof(int));
-    cudaMalloc((void **)&d_csrValL,    nnzL  * sizeof(VALUE_TYPE));
+    cudaMalloc((void **)&d_csrRowPtrL, sizeof(int)*(m+1));
+    cudaMalloc((void **)&d_csrColIdx, sizeof(int)*nnzL);
+    cudaMalloc((void **)&d_csrValL,    sizeof(VALUE_TYPE)*nnzL);
     
-    cudaMemcpy(d_csrRowPtrL, csrRowPtrL_tmp, (m+1) * sizeof(int),   cudaMemcpyHostToDevice);
-    cudaMemcpy(d_csrColIdx, csrColIdxL_tmp, nnzL  * sizeof(int),   cudaMemcpyHostToDevice);
-    cudaMemcpy(d_csrValL,    csrValL_tmp,    nnzL  * sizeof(VALUE_TYPE),   cudaMemcpyHostToDevice);
+    cudaMemcpy(d_csrRowPtrL, csrRowPtrL_tmp, sizeof(int)*(m+1),   cudaMemcpyHostToDevice);
+    cudaMemcpy(d_csrColIdx, csrColIdxL_tmp, sizeof(int)*nnzL,   cudaMemcpyHostToDevice);
+    cudaMemcpy(d_csrValL,    csrValL_tmp,    sizeof(VALUE_TYPE)*nnzL,   cudaMemcpyHostToDevice);
     
     // Vector b
-    cudaMalloc((void **)&d_b, m * sizeof(VALUE_TYPE));
-    cudaMemcpy(d_b, b, m * sizeof(VALUE_TYPE), cudaMemcpyHostToDevice);
+    cudaMalloc((void **)&d_b, sizeof(VALUE_TYPE) * m);
+    cudaMemcpy(d_b, b, sizeof(VALUE_TYPE) * m, cudaMemcpyHostToDevice);
     
     // Vector x
-    cudaMalloc((void **)&d_x, n  * sizeof(VALUE_TYPE));
-    cudaMemset(d_x, 0, n * sizeof(VALUE_TYPE));
+    cudaMalloc((void **)&d_x, sizeof(VALUE_TYPE) * n);
+    cudaMemset(d_x, 0, sizeof(VALUE_TYPE) * n);
     
     //get_value
     int *d_get_value;
-    int *get_value = (int *)malloc(m * sizeof(int));
-    memset(get_value, 0, m * sizeof(int));
-    cudaMalloc((void **)&d_get_value, (m) * sizeof(int));
-    cudaMemcpy(d_get_value, get_value, (m) * sizeof(int),   cudaMemcpyHostToDevice);
+    int *get_value = (int *)malloc(sizeof(int) * m);
+    memset(get_value, 0, sizeof(int) * m);
+    cudaMalloc((void **)&d_get_value, sizeof(int) * (m));
+    cudaMemcpy(d_get_value, get_value, sizeof(int) * (m),   cudaMemcpyHostToDevice);
     
     //warp_num
     int *d_warp_num;
-    cudaMalloc((void **)&d_warp_num, Len  * sizeof(int));
-    cudaMemcpy(d_warp_num, warp_num, Len * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void **)&d_warp_num, sizeof(int) * Len);
+    cudaMemcpy(d_warp_num, warp_num, sizeof(int) * Len, cudaMemcpyHostToDevice);
     
     
     /* solve Lx=b */
@@ -224,14 +224,14 @@ int YYSpTRSV_csr(const int            m,
         
         time_cuda_solve += (t2.tv_sec - t1.tv_sec) * 1000.0 + (t2.tv_usec - t1.tv_usec) / 1000.0;
         
-        cudaMemcpy(x, d_x, n * sizeof(VALUE_TYPE), cudaMemcpyDeviceToHost);
+        cudaMemcpy(x, d_x, sizeof(VALUE_TYPE) * n, cudaMemcpyDeviceToHost);
         
     }
     
     
     time_cuda_solve /= BENCH_REPEAT;
     
-    double dataSize = (double)((n+1)*sizeof(int) + (nnzL+m)*sizeof(int) + nnzL*sizeof(VALUE_TYPE) + 2*n*sizeof(VALUE_TYPE)+ Len * sizeof(int));
+    double dataSize = (double)(sizeof(int)*(n+1) + sizeof(int)*(nnzL+m) + sizeof(VALUE_TYPE)*nnzL + sizeof(VALUE_TYPE)*2*n+ sizeof(int)*Len);
     
     *solve_time_add=time_cuda_solve;
     *gflops_add=2*nnzL/(1e6*time_cuda_solve);
