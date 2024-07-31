@@ -40,7 +40,8 @@ using namespace uni;
 using cusp_int = int;
 #define my_CUSPARSE_INDEX CUSPARSE_INDEX_32I
 
-#define MAX_DOF_TEST 8
+// #define MAX_DOF_TEST 8
+const std::array<int, 5> dof_list = {1, 2, 4, 6, 8};
 
 struct benchmark_record {
     double total_time = 0;
@@ -49,7 +50,7 @@ struct benchmark_record {
     long count = 0;
 };
 
-benchmark_record benchmark_record_map_lower[MAX_DOF_TEST];
+benchmark_record benchmark_record_map_lower;
 
 void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
                                    int stencil_width) {
@@ -230,9 +231,8 @@ void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
                      sizeof(double) * A_num_rows;
     long writeBytes = sizeof(double) * A_num_rows;
 
-    benchmark_record_map_lower[Dof - 1] = {solve_time * 1e-3 * 10,
-                                           2L * A_nnz * 10,
-                                           (readBytes + writeBytes) * 10, 10};
+    benchmark_record_map_lower = {solve_time * 1e-3 * 10, 2L * A_nnz * 10,
+                                  (readBytes + writeBytes) * 10, 10};
     std::cout << "YYsptrsv LowerTime(ms): " << solve_time
               << ", Gflops: " << gflops << ", Bandwidth=" << bandwith
               << std::endl;
@@ -245,9 +245,9 @@ void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
         if (hY[i] !=
             hY_result[i]) {  // direct doubleing point comparison is not
             correct = 0;     // reliable
-            // break;
             std::cout << "i = " << i << ", hY[i] = " << hY[i]
                       << ", hY_result[i] = " << hY_result[i] << std::endl;
+            break;
         }
     }
     if (correct)
@@ -260,7 +260,13 @@ void RunBenchmarkLowerWithCusparse(Json json, int Dof, int stencil_type,
 }
 
 int main(int argc, char **argv) {
-    Json json = LoadJsonFromFile("matsolve-csrgen.json");
+    Json json = LoadJsonFromFile(
+#if UNI_CUDA_ARCH == 80
+        "matsolve-standard-a100.json"
+#else
+        "matsolve-standard.json"
+#endif
+    );
     std::string problems[] = {"stencilstar", "stencilbox", "stencilstarfill1"};
     bool if_output = json["output"];
     for (int i = 0; i < 3; i++) {
@@ -271,30 +277,30 @@ int main(int argc, char **argv) {
 
             std::ofstream of;
             if (if_output) {
-                of.open(std::string{"results/matsolve-yysptrsv-"} + problem +
+                of.open(std::string{"results/matsolve-yysptrsv-level-"} + problem +
                         "-stencilwidth" + std::to_string(stencil_width) +
                         ".out");
             } else {
                 of.open("/dev/null");
             }
-            for (int dof = 0; dof < MAX_DOF_TEST; dof++) {
-                of << problem << ", width=" << stencil_width
-                   << ", dof=" << dof + 1 << std::endl;
+            for (int dof : dof_list) {
+                of << problem << ", width=" << stencil_width << ", dof=" << dof
+                   << std::endl;
+                benchmark_record_map_lower = {0, 0, 0, 0};
                 RunBenchmarkLowerWithCusparse(
-                    json[problem + std::to_string(stencil_width)], dof + 1, i,
+                    json[problem + std::to_string(stencil_width)], dof, i,
                     stencil_width);
                 of << "Lower:";
-                double total_time = benchmark_record_map_lower[dof].total_time;
+                double total_time = benchmark_record_map_lower.total_time;
                 double total_flops_time =
-                    static_cast<double>(benchmark_record_map_lower[dof].flops) /
+                    static_cast<double>(benchmark_record_map_lower.flops) /
                     total_time;
                 double total_bytes_time =
-                    static_cast<double>(benchmark_record_map_lower[dof].bytes) /
+                    static_cast<double>(benchmark_record_map_lower.bytes) /
                     total_time;
 
-                of << dof + 1 << "," << total_time << ","
-                   << total_flops_time * 1e-9 << "," << total_bytes_time * 1e-9
-                   << std::endl;
+                of << dof << "," << total_time << "," << total_flops_time * 1e-9
+                   << "," << total_bytes_time * 1e-9 << std::endl;
             }
             of.close();
         }
